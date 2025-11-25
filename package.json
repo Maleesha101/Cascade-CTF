@@ -1,0 +1,23 @@
+{
+  "name": "cascade-challenge",
+  "version": "1.0.0",
+  "description": "MEDUSA 2.0 Hard Challenge: Cascade",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "start:all": "concurrently \"node internal-service.js\" \"node app.js\"",
+    "test": "node test-harness.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ejs": "^3.1.8",
+    "sqlite3": "^5.1.6",
+    "body-parser": "^1.20.2",
+    "concurrently": "^8.0.1"
+  },
+  "devDependencies": {
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
