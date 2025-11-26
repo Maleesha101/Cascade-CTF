@@ -54,3 +54,26 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# IMPORTANT: DO NOT DISTRIBUTE TO PLAYERS
+# Keep these for organizers/testing only
+exploit.py
+exploit_hardened.py
+ORGANIZER_HINTS.md
+test-harness.js
+
+# Deployment scripts (organizer use only)
+deploy-*.ps1
+bootstrap-*.ps1
+fresh-deploy.ps1
+fix-*.ps1
+seed-flag.sh
+startup.sh
+IAM-PERMISSIONS-FIX.md
+cascade-ctf-admin-policy.json
+
+# Source code (to prevent spoilers - distribute only Docker image)
+# Uncomment these if you want to hide source from players:
+# app.js
+# internal-service.js
+# package.json

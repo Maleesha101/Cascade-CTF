@@ -2,7 +2,9 @@
 
 ## For Competitors
 
-This package contains everything you need to deploy and test the Cascade challenge locally before attempting it on the competition server.
+This package contains everything you need to understand and attempt the Cascade challenge.
+
+**⚠️ Important**: This is a **learning challenge**. The files included are for understanding the challenge structure, NOT for running automated exploits.
 
 ---
 
@@ -10,17 +12,23 @@ This package contains everything you need to deploy and test the Cascade challen
 
 ```
 cascade-challenge/
-├── docker-compose.yml          # Easy deployment
-├── Dockerfile                  # Container configuration
-├── challenge-description.md    # Challenge info & hints
+├── docker-compose.yml          # Easy local deployment
+├── Dockerfile                  # Container configuration  
+├── PLAYER_GUIDE.md            # Challenge walkthrough with hints
 └── README.md                   # This file
 ```
 
+**NOT INCLUDED** (Organizer/Testing Only):
+- `exploit.py` - Automated exploit script (DO NOT DISTRIBUTE)
+- `exploit_hardened.py` - Advanced exploit (DO NOT DISTRIBUTE)
+- `ORGANIZER_HINTS.md` - Hint strategy guide (for organizers only)
+- `app.js`, `internal-service.js` - Source code (to prevent spoilers)
+
 ---
 
-## 🚀 Local Setup (Optional)
+## 🚀 Local Testing (Optional)
 
-You can deploy this challenge locally for testing:
+You can deploy this challenge locally to practice:
 
 ### Prerequisites
 - Docker & Docker Compose installed
@@ -45,10 +53,41 @@ docker-compose down
 
 **Challenge Name:** Cascade  
 **Category:** Web Exploitation  
-**Difficulty:** Hard  
-**Points:** 500  
+**Difficulty:** Medium (7/10)  
+**Points:** 350-500 (depends on CTF scoring)
 
 **Competition Server:** `http://[PROVIDED_BY_ORGANIZERS]:3000`
+
+---
+
+## 📖 Getting Started
+
+1. **Read** `PLAYER_GUIDE.md` for challenge overview and hints
+2. **Explore** the available endpoints listed in the guide
+3. **Research** the vulnerability types mentioned
+4. **Chain** the vulnerabilities to read `/tmp/flag.txt`
+
+## 🎓 Learning Objectives
+
+This challenge teaches:
+- Server-Side Template Injection (SSTI)
+- Server-Side Request Forgery (SSRF)
+- Blacklist bypass techniques
+- JavaScript encoding methods
+- Vulnerability chaining
+
+## ⏱️ Rate Limiting
+
+Be aware of rate limits:
+- **10 requests/minute** on critical endpoints
+- Plan your attacks carefully
+- Blind brute-forcing will fail
+
+## 🏆 Submission
+
+Submit the flag in format: `MEDUSA2{...}`
+
+Good luck! 🚩
 
 ---
 
@@ -161,7 +200,7 @@ By completing this challenge, you'll learn:
 
 ## ✅ Submission
 
-Submit your flag on the CTF platform: `http://ctf-platform.example.com/submit`
+Submit your flag on the CTF platform:
 
 **Flag Format:** `MEDUSA2{...}`
 

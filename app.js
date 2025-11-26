@@ -9,6 +9,7 @@ const ejs = require('ejs');
 const bodyParser = require('body-parser');
 const http = require('http');
 const fs = require('fs');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(bodyParser.json());
@@ -20,15 +21,26 @@ const users = {
   'user2': { id: 2, username: 'user2', email: 'user2@example.com', bio: 'Another user' }
 };
 
-// Request counter for rate limiting
-let requestCount = 0;
-const MAX_REQUESTS_PER_MINUTE = 100;
-setInterval(() => { requestCount = 0; }, 60000);
+// Rate limiting configuration to prevent brute force attacks
+const strictLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute per IP
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const moderateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute per IP
+  message: { error: 'Rate limit exceeded' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // VULNERABILITY 1: Server-Side Template Injection (SSTI) in /profile
 // Unsafely renders user-supplied template data
-app.get('/profile/:username', (req, res) => {
-  requestCount++;
+app.get('/profile/:username', moderateLimiter, (req, res) => {
   if (requestCount > MAX_REQUESTS_PER_MINUTE) {
     return res.status(429).json({ error: 'Too many requests' });
   }
@@ -59,7 +71,7 @@ app.get('/profile/:username', (req, res) => {
       <p><%= bio %></p>
     `;
     
-    // VULNERABILITY: Still vulnerable but with restricted context
+    // VULNERABILITY 1: Removed direct access to dangerous globals
     // Removed direct access to require, process, etc.
     // Must find alternative ways to access these
     const rendered = ejs.render(template, {
@@ -76,12 +88,7 @@ app.get('/profile/:username', (req, res) => {
 
 // VULNERABILITY 2: Server-Side Request Forgery (SSRF) via template injection
 // Attackers can use SSTI to make HTTP requests to internal services
-app.get('/fetch', (req, res) => {
-  requestCount++;
-  if (requestCount > MAX_REQUESTS_PER_MINUTE) {
-    return res.status(429).json({ error: 'Too many requests' });
-  }
-
+app.get('/fetch', strictLimiter, (req, res) => {
   const url = req.query.url;
   const signature = req.query.sig;
   
@@ -128,46 +135,34 @@ app.get('/fetch', (req, res) => {
 
 // VULNERABILITY 3: Insecure Deserialization via eval()
 // Accepts and evaluates untrusted code objects
-app.post('/eval', express.json(), (req, res) => {
-  requestCount++;
-  if (requestCount > MAX_REQUESTS_PER_MINUTE) {
-    return res.status(429).json({ error: 'Too many requests' });
-  }
-
+app.post('/eval', strictLimiter, express.json(), (req, res) => {
   const code = req.body.code;
   if (!code) {
     return res.status(400).json({ error: 'Missing code parameter' });
   }
 
-  // Enhanced blacklist - blocks more patterns and obfuscation techniques
+  // Moderate blacklist - blocks dangerous keywords but allows encoding bypass
   const blacklist = [
-    'require', 'process', 'child_process', 'fs', 'module',
-    'import', 'eval', 'Function', 'constructor', 'prototype',
-    '__proto__', 'exec', 'spawn', 'fork', 'Buffer',
-    'global', 'globalThis', 'this', 'self', 'window'
+    'require', 'process', 'child_process',
+    'import', 'Function', 'constructor', 'prototype',
+    '__proto__', 'exec', 'spawn', 'fork'
   ];
-  
-  // Check for direct keyword matches
+
+  // Check for direct keyword matches (case-insensitive)
   for (const keyword of blacklist) {
     if (code.toLowerCase().includes(keyword.toLowerCase())) {
       return res.status(403).json({ error: 'Blocked keyword: ' + keyword });
     }
   }
-
-  // Block common encoding patterns
+  
+  // Block SOME encoding patterns (but allow hex escape which is the intended bypass)
   const encodingPatterns = [
-    /\\x[0-9a-fA-F]{2}/,           // Hex encoding: \x72
-    /\\u[0-9a-fA-F]{4}/,           // Unicode: \u0072
-    /\\[0-7]{1,3}/,                // Octal: \162
-    /String\.fromCharCode/i,       // Character code conversion
+    /String\.fromCharCode/i,       // Block obvious character conversion
     /fromCharCode/i,
-    /String\[/,                    // String['fromCharCode']
-    /\[\s*["'`]/,                  // Bracket notation: ['require']
-    /\+\s*["'`]/,                  // String concatenation: 'req' + 'uire'
-    /\$\{/,                        // Template literals: ${}
-    /atob|btoa/i,                  // Base64 encoding
-    /unescape|decodeURI/i,         // URI/escape decoding
-    /\.call\(|.apply\(/i,          // Function call/apply
+    /String\[/,                    // Block bracket notation: String['fromCharCode']
+    /\+\s*["'`]/,                  // Block string concatenation: 'req' + 'uire'
+    /atob|btoa/i,                  // Block base64 encoding functions
+    /unescape|decodeURI/i,         // Block URI/escape decoding
   ];
 
   for (const pattern of encodingPatterns) {
@@ -206,12 +201,8 @@ app.post('/eval', express.json(), (req, res) => {
 });
 
 // Admin endpoint: returns flag after successful privilege escalation
-app.get('/admin/flag', (req, res) => {
-  requestCount++;
-  if (requestCount > MAX_REQUESTS_PER_MINUTE) {
-    return res.status(429).json({ error: 'Too many requests' });
-  }
-
+/*
+app.get('/admin/flag', strictLimiter, (req, res) => {
   // In real exploitation, this is reached via deserialization RCE
   // For testing, organizers can manually read the flag
   try {
@@ -222,6 +213,7 @@ app.get('/admin/flag', (req, res) => {
   }
 });
 
+*/
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'cascade' });

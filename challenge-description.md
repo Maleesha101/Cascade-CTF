@@ -51,6 +51,5 @@ The application appears to be some kind of user management system. Start explori
 
 ## Support
 
-If you're stuck or encounter technical issues, contact the CTF organizers on Discord: `#cascade-support`
-
+If you're stuck or encounter technical issues, contact the CTF organizers
 Good luck! 🚀
