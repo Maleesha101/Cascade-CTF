@@ -1,0 +1,38 @@
+﻿Subject: Cascade Web Challenge - Deployment Request
+
+Hi [Platform Team],
+
+We would like to host the Cascade web exploitation challenge on your platform.
+
+CHALLENGE DETAILS:
+Name: Cascade
+Category: Web Exploitation
+Difficulty: Medium (7/10)
+Points: 400-500
+Technology: Docker with Node.js 18
+Ports: 3000 (main), 3001 (internal service)
+Resources: 0.5 CPU, 512MB RAM per instance
+
+FILES ATTACHED:
+cascade-ctf-v1.0.tar (Pre-built Docker image, 60.56 MB)
+PLAYER_GUIDE.md
+PLATFORM_HOSTING_GUIDE.md
+challenge-config.json
+docker-compose.yml
+README.md
+
+DEPLOYMENT:
+Both ports (3000, 3001) must be accessible
+Rate limiting: Built-in (10 requests/min per IP)
+Flag: MEDUSA2{s0_m4ny_l4y3r5_t0_peel_b4ck}
+
+TESTING:
+docker load -i cascade-ctf-v1.0.tar
+docker run -d -p 3000:3000 -p 3001:3001 cascade-ctf:v1.0
+curl http://localhost:3000/health
+
+Repository: https://github.com/Maleesha101/Cascade-CTF
+
+Please let us know if you need additional information.
+
+Thank you!

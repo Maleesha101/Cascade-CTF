@@ -1,0 +1,154 @@
+{
+  "name": "Cascade",
+  "category": "Web Exploitation",
+  "difficulty": "Medium",
+  "points": 400,
+  "author": "MEDUSA CTF Team",
+  "version": "1.0",
+  
+  "description": "Chain multiple vulnerabilities together to capture the flag. You'll need to exploit SSTI, SSRF, and bypass security filters to read /tmp/flag.txt from the internal service.",
+  
+  "long_description": "See PLAYER_GUIDE.md for complete documentation and hints.",
+  
+  "flag": {
+    "type": "static",
+    "value": "MEDUSA2{s0_m4ny_l4y3r5_t0_peel_b4ck}",
+    "case_sensitive": true
+  },
+  
+  "deployment": {
+    "type": "docker",
+    "image": "cascade-ctf:v1.0",
+    "image_tarball": "cascade-ctf-v1.0.tar.gz",
+    "ports": [
+      {
+        "container": 3000,
+        "protocol": "tcp",
+        "description": "Main web application"
+      },
+      {
+        "container": 3001,
+        "protocol": "tcp",
+        "description": "Internal service (accessed via SSRF)"
+      }
+    ],
+    "resources": {
+      "cpu": "0.5",
+      "memory": "512Mi",
+      "disk": "200Mi"
+    },
+    "health_check": {
+      "type": "http",
+      "path": "/health",
+      "port": 3000,
+      "interval": 10,
+      "timeout": 3,
+      "retries": 3
+    },
+    "restart_policy": "unless-stopped"
+  },
+  
+  "network": {
+    "isolation": "per-team",
+    "rate_limiting": {
+      "enabled": true,
+      "rules": [
+        {
+          "endpoints": ["/eval", "/fetch"],
+          "limit": 10,
+          "window": "1 minute"
+        },
+        {
+          "endpoints": ["/profile/*", "/render"],
+          "limit": 30,
+          "window": "1 minute"
+        }
+      ]
+    }
+  },
+  
+  "tags": [
+    "web",
+    "ssti",
+    "ssrf",
+    "deserialization",
+    "blacklist-bypass",
+    "javascript",
+    "nodejs"
+  ],
+  
+  "hints": [
+    {
+      "cost": 50,
+      "text": "Start by exploring the /render endpoint. Does it properly sanitize template input? Try: <%= 7*7 %>"
+    },
+    {
+      "cost": 100,
+      "text": "The /fetch endpoint makes HTTP requests but requires signature verification. Check error messages for the algorithm. Hint: MD5 with a secret."
+    },
+    {
+      "cost": 150,
+      "text": "The /eval endpoint blocks dangerous keywords. Research JavaScript hex escape sequences (\\xHH) to bypass string-based blacklists."
+    },
+    {
+      "cost": 200,
+      "text": "Chain the vulnerabilities: Use SSRF to access localhost:3001, authenticate with the internal service, then bypass eval blacklist to read /tmp/flag.txt"
+    }
+  ],
+  
+  "files": [
+    {
+      "name": "PLAYER_GUIDE.md",
+      "description": "Complete challenge guide with hints and endpoint documentation"
+    }
+  ],
+  
+  "learning_objectives": [
+    "Server-Side Template Injection (SSTI)",
+    "Server-Side Request Forgery (SSRF)",
+    "Signature bypass techniques",
+    "JavaScript blacklist bypass",
+    "Vulnerability chaining"
+  ],
+  
+  "prerequisites": [
+    "Basic web exploitation knowledge",
+    "Understanding of HTTP requests",
+    "JavaScript basics",
+    "Command line comfort (curl, etc.)"
+  ],
+  
+  "estimated_solve_time": {
+    "beginner": "90-120 minutes",
+    "intermediate": "30-60 minutes",
+    "advanced": "15-30 minutes"
+  },
+  
+  "platform_compatibility": [
+    "CTFd",
+    "rCTF",
+    "FBCTF",
+    "PicoCTF",
+    "Custom Docker-based platforms"
+  ],
+  
+  "notes": [
+    "Both ports (3000 and 3001) must be accessible to players",
+    "Rate limiting is built into the challenge - no platform-level rate limiting needed",
+    "Challenge is self-contained - no external dependencies",
+    "Flag is embedded in Docker image at /tmp/flag.txt",
+    "For dynamic flags, modify Dockerfile to accept FLAG environment variable"
+  ],
+  
+  "testing": {
+    "quick_test": "curl http://[instance_url]:3000/health",
+    "expected_response": "{\"status\":\"ok\",\"service\":\"cascade\"}",
+    "verify_flag": "docker exec [container] cat /tmp/flag.txt"
+  },
+  
+  "support": {
+    "repository": "https://github.com/Maleesha101/Cascade-CTF",
+    "issues": "https://github.com/Maleesha101/Cascade-CTF/issues",
+    "documentation": "PLATFORM_HOSTING_GUIDE.md"
+  }
+}

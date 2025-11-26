@@ -1,0 +1,40 @@
+version: '3.9'
+
+services:
+  cascade:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cascade-challenge
+    ports:
+      - "3000:3000"
+      - "127.0.0.1:3001:3001"  # Internal service: localhost only
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    restart: unless-stopped
+    networks:
+      - cascade-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    # Resource limits to prevent abuse
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # App needs to read /tmp/flag.txt
+
+networks:
+  cascade-network:
+    driver: bridge
