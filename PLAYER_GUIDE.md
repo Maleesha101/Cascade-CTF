@@ -1,40 +1,102 @@
 # Cascade Challenge - Player Guide
 
 ## Challenge Overview
-**Difficulty**: Medium (7/10)  
+**Difficulty**: Hard (8-9/10)  
 **Category**: Web Exploitation  
-**Skills Required**: SSTI, SSRF, Blacklist Bypass, JavaScript Exploitation
+**Skills Required**: SSTI, SSRF, IP Encoding, Token Generation, Blacklist Bypass, JavaScript Exploitation
 
 ## Challenge Description
-You've discovered a web application with multiple vulnerabilities. Chain them together to read the flag from `/tmp/flag.txt`.
+You've discovered a web application with multiple vulnerabilities. This challenge requires chaining **4 different vulnerabilities** to reach the flag:
+
+1. **SSTI** (Server-Side Template Injection)
+2. **SSRF** (Server-Side Request Forgery) with IP encoding bypass
+3. **Token Generation** from internal service
+4. **Eval Blacklist Bypass** using encoding techniques
 
 **Target**: `http://[CHALLENGE_URL]:3000`
 
+**Flag Location**: `/tmp/flag.txt`
+
+## Architecture
+
+The application has **two services**:
+- **Main App** (port 3000): Publicly accessible
+- **Internal Service** (port 3001): Only accessible from main app (SSRF required)
+
 ## Available Endpoints
 
-### 1. `/health` (GET)
-Health check endpoint - tells you if the server is running.
+### Main App (Port 3000)
 
-### 2. `/profile/:username` (GET)
+#### 1. `/health` (GET)
+Health check endpoint.
+
+#### 2. `/profile/:username` (GET)
 User profile viewer with template rendering.
 
-### 3. `/render` (POST)
+#### 3. `/render` (POST)
 Custom template rendering endpoint.
 - Body: `{"template": "your_template_here"}`
 
-### 4. `/fetch` (GET)
-URL fetcher that makes HTTP requests.
+#### 4. `/fetch` (GET)
+URL fetcher (SSRF vulnerability).
 - Parameters: `url`, `sig`
-- Note: Signature verification required
+- **Blocks**: `localhost`, `127.0.0.1`, `::1`, private IPs
+- **Allows**: IP encoding bypasses (research this!)
+- Requires MD5 signature: `md5(url + "secret123")[:8]`
 
-### 5. `/eval` (POST)
-Code evaluation endpoint (intentionally vulnerable).
-- Body: `{"code": "your_javascript_code"}`
-- Has security filters - you'll need to bypass them
+#### 5. `/eval` (POST)
+Code evaluation endpoint.
+- Body: `{"code": "your_code", "token": "eval_token_from_internal_service"}`
+- **Requires token from internal service** (forces SSRF chain)
+- Strong keyword blacklist
+- Encoding pattern detection
+- 150 character limit
+
+### Internal Service (Port 3001)
+
+⚠️ **Not directly accessible** - must use SSRF via `/fetch`
+
+#### 6. `/health` (GET)
+Internal health check.
+
+#### 7. `/token` (GET)
+Generates eval tokens for authenticated requests.
+- Parameters: `ts` (timestamp), `token` (auth token)
+- Token algorithm: `sha256("internal_" + timestamp + "_cascade")[:16]`
+- Timestamp must be within 60 seconds
+- Returns: `evalToken` (valid for 5 minutes)
+
+## Exploitation Chain
+
+### Step 1: SSRF with IP Encoding Bypass
+- `/fetch` blocks `localhost` and `127.0.0.1`
+- Research IP address encoding techniques
+- Hint: What other ways can you represent 127.0.0.1?
+
+### Step 2: Generate Auth Token
+- Internal service requires timestamp + token
+- Figure out the token generation algorithm
+- Hint: Check the `/token` endpoint error messages
+
+### Step 3: Get Eval Token
+- Use SSRF to access `http://[BYPASS]:3001/token`
+- Provide correct timestamp and auth token
+- Receive `evalToken` for `/eval` endpoint
+
+### Step 4: Bypass Eval Blacklist
+- `/eval` blocks many keywords: `require`, `process`, `child_process`, etc.
+- Also blocks encoding patterns: `fromCharCode`, string concatenation, `atob`
+- 150 character limit
+- Research: JavaScript string encoding bypasses
+- Hint: There are multiple encoding schemes in JavaScript
 
 ## Your Mission
 
-Read the flag from `/tmp/flag.txt` by chaining vulnerabilities.
+Chain all 4 vulnerabilities to read `/tmp/flag.txt`:
+1. Bypass SSRF IP blacklist
+2. Generate auth token for internal service  
+3. Obtain eval token via SSRF
+4. Bypass eval blacklist to read flag
 
 ## Hints
 

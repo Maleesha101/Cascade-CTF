@@ -97,10 +97,12 @@ app.get('/fetch', strictLimiter, (req, res) => {
   }
 
   // Enhanced URL validation - blocks obvious patterns but allows encoding bypasses
+  // Allows: 127.1, 0x7f.1, 0x7f000001, 2130706433 (decimal IP), etc.
   const blockedPatterns = [
     'file://', '..', 
-    'localhost',    // blocks "localhost" but allows 127.1, 0x7f.1, etc.
-    '127.0.0.1',    // blocks full IP but allows shortened versions
+    'localhost',    // blocks "localhost" string
+    '127.0.0.1',    // blocks full dotted notation
+    '0.0.0.0',      // blocks wildcard
     '::1',          // blocks IPv6 localhost
     'metadata'      // blocks cloud metadata
   ];
@@ -110,6 +112,14 @@ app.get('/fetch', strictLimiter, (req, res) => {
     if (urlLower.includes(pattern)) {
       return res.status(403).json({ error: 'Blocked URL pattern' });
     }
+  }
+  
+  // Additional check: block if it looks like internal RFC1918 addresses
+  // But allow encoded versions
+  if (/(?:^|\.)10\./.test(urlLower) || 
+      /(?:^|\.)192\.168\./.test(urlLower) || 
+      /(?:^|\.)172\.(?:1[6-9]|2[0-9]|3[01])\./.test(urlLower)) {
+    return res.status(403).json({ error: 'Private IP range blocked' });
   }
 
   // Signature verification (weak - can be bypassed with timing attack or brute force)
@@ -137,52 +147,11 @@ app.get('/fetch', strictLimiter, (req, res) => {
 
 // VULNERABILITY 3: Insecure Deserialization via eval()
 // Accepts and evaluates untrusted code objects
-// NOW REQUIRES TOKEN FROM INTERNAL SERVICE (forces SSRF chain)
 app.post('/eval', strictLimiter, express.json(), (req, res) => {
   const code = req.body.code;
-  const evalToken = req.body.token; // Token from internal service
   
   if (!code) {
     return res.status(400).json({ error: 'Missing code parameter' });
-  }
-
-  // REQUIRE TOKEN FROM INTERNAL SERVICE (forces SSRF exploitation)
-  if (!evalToken) {
-    return res.status(401).json({ 
-      error: 'Missing eval token',
-      hint: 'You need a valid token from the internal service to use eval'
-    });
-  }
-
-  // Validate token format (must be from internal service)
-  // Token format: eval_<base64_signature>
-  if (!evalToken.startsWith('eval_')) {
-    return res.status(403).json({ error: 'Invalid token format' });
-  }
-
-  // Verify token is valid (simple check - token must be recent)
-  try {
-    const tokenData = Buffer.from(evalToken.substring(5), 'base64').toString();
-    const tokenObj = JSON.parse(tokenData);
-    
-    // Check if token is recent (within 5 minutes)
-    const tokenTime = new Date(tokenObj.timestamp).getTime();
-    const now = Date.now();
-    if (now - tokenTime > 300000) { // 5 minutes
-      return res.status(403).json({ error: 'Token expired' });
-    }
-    
-    // Verify token signature
-    const crypto = require('crypto');
-    const expectedSig = crypto.createHash('sha256')
-      .update(`eval_${tokenObj.timestamp}_cascade`)
-      .digest('hex');
-    
-    if (tokenObj.signature !== expectedSig) {
-      return res.status(403).json({ error: 'Invalid token signature' });
-    }
-  } catch (e) {
-    return res.status(403).json({ error: 'Invalid token' });
   }
 
   // Moderate blacklist - blocks dangerous keywords but allows encoding bypass
