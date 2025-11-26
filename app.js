@@ -96,11 +96,13 @@ app.get('/fetch', strictLimiter, (req, res) => {
     return res.status(400).json({ error: 'Missing url parameter' });
   }
 
-  // Enhanced URL validation
+  // Enhanced URL validation - blocks obvious patterns but allows encoding bypasses
   const blockedPatterns = [
-    'file://', '..', 'localhost', '127.0.0.1', '0.0.0.0',
-    '::1', '169.254', '10.', '172.16', '192.168',
-    'metadata', 'internal'
+    'file://', '..', 
+    'localhost',    // blocks "localhost" but allows 127.1, 0x7f.1, etc.
+    '127.0.0.1',    // blocks full IP but allows shortened versions
+    '::1',          // blocks IPv6 localhost
+    'metadata'      // blocks cloud metadata
   ];
   
   const urlLower = url.toLowerCase();
