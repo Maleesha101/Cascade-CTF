@@ -97,29 +97,31 @@ app.get('/fetch', strictLimiter, (req, res) => {
   }
 
   // Enhanced URL validation - blocks obvious patterns but allows encoding bypasses
-  // Allows: 127.1, 0x7f.1, 0x7f000001, 2130706433 (decimal IP), etc.
-  const blockedPatterns = [
+  // Strategy: Block the IP/hostname, but allow if accessing port 3001 (internal service)
+  const urlLower = url.toLowerCase();
+  
+  // If accessing port 3001 (internal service), we need to allow localhost
+  // But make players figure out they need to use alternative representations
+  const is3001 = url.includes(':3001');
+  
+  const blockedPatterns = is3001 ? [
     'file://', '..', 
-    'localhost',    // blocks "localhost" string
-    '127.0.0.1',    // blocks full dotted notation
-    '0.0.0.0',      // blocks wildcard
+    // When accessing :3001, only block the obvious ones
+    '127.0.0.1',    // blocks dotted notation (force them to use 127.1 or decimal)
     '::1',          // blocks IPv6 localhost
     'metadata'      // blocks cloud metadata
+    // NOTE: 'localhost' is allowed for :3001 to make challenge solvable
+  ] : [
+    'file://', '..', 
+    'localhost', '127.0.0.1', '0.0.0.0', '::1',
+    'metadata', 'internal',
+    '10.', '172.16', '192.168'  // block private IPs for non-internal
   ];
   
-  const urlLower = url.toLowerCase();
   for (const pattern of blockedPatterns) {
     if (urlLower.includes(pattern)) {
       return res.status(403).json({ error: 'Blocked URL pattern' });
     }
-  }
-  
-  // Additional check: block if it looks like internal RFC1918 addresses
-  // But allow encoded versions
-  if (/(?:^|\.)10\./.test(urlLower) || 
-      /(?:^|\.)192\.168\./.test(urlLower) || 
-      /(?:^|\.)172\.(?:1[6-9]|2[0-9]|3[01])\./.test(urlLower)) {
-    return res.status(403).json({ error: 'Private IP range blocked' });
   }
 
   // Signature verification (weak - can be bypassed with timing attack or brute force)
