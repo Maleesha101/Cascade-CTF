@@ -59,6 +59,50 @@ app.get('/data', (req, res) => {
   });
 });
 
+// NEW ENDPOINT: Generate eval tokens for authenticated requests
+// This forces players to exploit SSRF first to get the token
+app.get('/token', (req, res) => {
+  const timestamp = req.query.ts;
+  const authToken = req.query.token;
+  
+  // Time-based challenge (must be within 60 seconds)
+  const now = Math.floor(Date.now() / 1000);
+  if (!timestamp || Math.abs(now - parseInt(timestamp)) > 60) {
+    return res.status(401).json({ error: 'Invalid or expired timestamp' });
+  }
+  
+  // Token verification (same as /data endpoint)
+  const crypto = require('crypto');
+  const expectedToken = crypto.createHash('sha256')
+    .update(`internal_${timestamp}_cascade`)
+    .digest('hex')
+    .substring(0, 16);
+  
+  if (!authToken || authToken !== expectedToken) {
+    return res.status(403).json({ 
+      error: 'Invalid authentication token',
+      hint: 'Use the same token algorithm as /data endpoint'
+    });
+  }
+
+  // Generate eval token (valid for 5 minutes)
+  const evalTokenData = {
+    timestamp: new Date().toISOString(),
+    signature: crypto.createHash('sha256')
+      .update(`eval_${new Date().toISOString()}_cascade`)
+      .digest('hex')
+  };
+  
+  const evalToken = 'eval_' + Buffer.from(JSON.stringify(evalTokenData)).toString('base64');
+  
+  res.json({
+    success: true,
+    evalToken: evalToken,
+    expiresIn: '5 minutes',
+    message: 'Use this token with the /eval endpoint'
+  });
+});
+
 const PORT = 3001;
 app.listen(PORT, 'localhost', () => {
   console.log(`[Internal Service] Listening on localhost:${PORT}`);
