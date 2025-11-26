@@ -17,16 +17,16 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY app.js internal-service.js ./
 COPY package.json ./
 
-# Create flag file with restricted permissions
-RUN echo "MEDUSA2{s0_m4ny_l4y3r5_t0_peel_b4ck}" > /tmp/flag.txt && \
-    chmod 440 /tmp/flag.txt && \
-    chown 1000:1000 /tmp/flag.txt
-
 # Set ownership of app files
 RUN chown -R 1000:1000 /app
 
-# Set ownership of app files
-RUN chown -R 1000:1000 /app
+# Create startup script to initialize flag at runtime
+RUN echo '#!/bin/sh' > /app/init.sh && \
+    echo 'echo "MEDUSA2{s0_m4ny_l4y3r5_t0_peel_b4ck}" > /tmp/flag.txt' >> /app/init.sh && \
+    echo 'chmod 440 /tmp/flag.txt' >> /app/init.sh && \
+    echo 'chown 1000:1000 /tmp/flag.txt 2>/dev/null || true' >> /app/init.sh && \
+    echo 'exec npm run start:all' >> /app/init.sh && \
+    chmod +x /app/init.sh
 
 # Switch to non-root user
 USER 1000:1000
@@ -38,5 +38,5 @@ EXPOSE 3000 3001
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
-# Start both services
-CMD ["npm", "run", "start:all"]
+# Start both services using init script that creates flag at runtime
+CMD ["/app/init.sh"]
