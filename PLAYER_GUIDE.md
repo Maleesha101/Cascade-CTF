@@ -3,7 +3,7 @@
 ## Challenge Overview
 **Difficulty**: Hard (8-9/10)  
 **Category**: Web Exploitation  
-**Skills Required**: SSTI, SSRF, IP Encoding, Token Generation, Blacklist Bypass, JavaScript Exploitation
+**Skills Required**: SSRF, Port-based Filter Bypass, Hash Algorithms (MD5, SHA-256), Base64 Decoding, JavaScript Hex Escapes, Token Generation
 
 ## Challenge Description
 You've discovered a web application with multiple vulnerabilities. This challenge requires chaining **5 different steps** to reach the flag:
@@ -31,14 +31,17 @@ The application has **two services**:
 #### 1. `/health` (GET)
 Health check endpoint.
 
-#### 2. `/profile/:username` (GET)
+#### 2. `/profile/:username` (GET) - *Optional*
 User profile viewer with template rendering.
+- Not required for main exploitation chain
+- Can be explored for alternative approaches
 
-#### 3. `/render` (POST)
+#### 3. `/render` (POST) - *Optional*
 Custom template rendering endpoint.
 - Body: `{"template": "your_template_here"}`
+- Not required for main exploitation chain
 
-#### 4. `/fetch` (GET)
+#### 4. `/fetch` (GET) - **Critical**
 URL fetcher (SSRF vulnerability).
 - Parameters: `url`, `sig`
 - **Blocks**: Most localhost representations and private IPs
@@ -112,9 +115,13 @@ Chain all 5 steps to read `/tmp/flag.txt`:
 ## Hints
 
 <details>
-<summary>Hint 1: Finding the First Vulnerability</summary>
+<summary>Hint 1: Finding the SSRF Endpoint</summary>
 
-Look at the `/render` and `/profile` endpoints. Do they properly sanitize user input before rendering templates?
+Explore all available endpoints. One of them can make HTTP requests on behalf of the server.
+
+Look for endpoints that accept a URL parameter. How does it verify requests?
+
+Try making a request to an external URL first to understand the signature mechanism.
 
 </details>
 
@@ -237,14 +244,7 @@ Note: `module`, `fs`, and bracket notation `[]` are NOT blocked.
 curl http://localhost:3000/health
 ```
 
-### Test 2: Template Injection
-```bash
-curl -X POST http://localhost:3000/render \
-  -H "Content-Type: application/json" \
-  -d '{"template":"<%= 7*7 %>"}'
-```
-
-### Test 3: SSRF (with signature)
+### Test 2: SSRF Discovery (with signature)
 ```bash
 # Calculate signature: md5("http://localhost:3001/health" + "secret123")[:8]
 # Result: 4427720f
@@ -252,7 +252,7 @@ curl -X POST http://localhost:3000/render \
 curl "http://localhost:3000/fetch?url=http://localhost:3001/health&sig=4427720f"
 ```
 
-### Test 4: Eval (needs token from internal service)
+### Test 3: Eval (needs token from internal service)
 ```bash
 curl -X POST http://localhost:3000/eval \
   -H "Content-Type: application/json" \
